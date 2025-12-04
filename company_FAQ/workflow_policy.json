@@ -1,0 +1,118 @@
+[
+  {
+    "question": "프로젝트 킥오프는 어떻게 진행돼?",
+    "answer": "새 프로젝트 시작 시 킥오프 미팅을 진행합니다. 참석자: PM, 개발팀, 디자인팀, QA팀. 안건: 프로젝트 목표, 요구사항 검토, 기술 스택 선정, 일정 수립, 역할 분담. 킥오프 전 PM이 PRD(Product Requirements Document)를 Confluence에 작성하고, 모든 참석자가 사전에 읽어와야 합니다. 킥오프 후 Jira에 Epic과 Story를 생성하고, Slack에 프로젝트 전용 채널(#project-이름)을 만듭니다. 회의록은 Confluence에 기록합니다. 문의: PM팀 (내선: 6000)"
+  },
+  {
+    "question": "요구사항 변경은 어떻게 처리해?",
+    "answer": "공식 변경 요청 프로세스를 따라야 합니다. ① 요청자가 Jira에 'Change Request' 티켓 생성, ② PM이 영향도 분석(일정, 리소스, 기술), ③ 팀 리뷰 미팅에서 검토, ④ 승인/거부 결정, ⑤ 승인 시 기존 Story 수정 또는 새 Story 추가. 스프린트 진행 중 긴급 변경은 팀장 + PM 합의 하에 가능하며, 반드시 #tech-all 채널에 공지해야 합니다. 변경 이력은 Confluence의 'Change Log'에 기록되고, 클라이언트 요청 변경은 별도 계약 검토가 필요할 수 있습니다."
+  },
+  {
+    "question": "기술 스펙 문서는 누가 작성해?",
+    "answer": "Tech Lead 또는 해당 기능 담당 개발자가 작성합니다. 작성 시기: 개발 시작 전(스프린트 플래닝 후 2일 이내). 포함 내용: 기능 개요, 기술 스택, API 설계, DB 스키마, 시퀀스 다이어그램, 고려사항(성능, 보안), 테스트 계획. Confluence에 'Tech Spec: [기능명]' 형식으로 작성하고, 팀 리뷰를 받아야 합니다. 리뷰어는 Tech Lead + 시니어 개발자 2명이며, 승인 후 개발을 시작합니다. 스펙 변경 시 문서도 업데이트해야 합니다."
+  },
+  {
+    "question": "API 설계 규칙은 뭐야?",
+    "answer": "RESTful API 원칙을 따릅니다. URL: /api/v1/리소스명(복수형), HTTP Method: GET(조회), POST(생성), PUT(전체 수정), PATCH(부분 수정), DELETE(삭제). 응답 형식: JSON, 상태 코드: 200(성공), 201(생성), 400(잘못된 요청), 401(인증 실패), 403(권한 없음), 404(Not Found), 500(서버 오류). 네이밍: snake_case(JSON 키), camelCase(JS 변수). 페이징: ?page=1&size=20, 정렬: ?sort=created_at:desc. API 문서는 Swagger로 자동 생성되며, Postman Collection도 유지합니다. 문의: 백엔드 팀장 김철수 (내선: 1101)"
+  },
+  {
+    "question": "데이터베이스 스키마 변경은 어떻게 해?",
+    "answer": "마이그레이션 스크립트로 관리합니다. ① Jira에 'DB Schema Change' 티켓 생성, ② 마이그레이션 파일 작성(timestamp_description.sql), ③ 로컬/개발 DB에서 테스트, ④ PR 생성 후 Tech Lead 리뷰, ⑤ 승인 후 develop 브랜치에 머지, ⑥ 스테이징 배포 후 검증, ⑦ 프로덕션 배포(배포 시 자동 실행). 롤백 스크립트도 함께 작성해야 하며, 대용량 테이블 변경은 점진적 마이그레이션 전략을 사용합니다. 스키마 변경은 #db-changes 채널에 사전 공지 필수입니다."
+  },
+  {
+    "question": "코드 리뷰 체크리스트는?",
+    "answer": "필수 체크 항목: ① 기능 요구사항 충족 여부, ② 단위 테스트 작성 및 통과, ③ 코딩 컨벤션 준수, ④ 에러 핸들링, ⑤ 보안(SQL Injection, XSS 방지), ⑥ 성능(N+1 쿼리, 불필요한 루프 등), ⑦ 주석 및 문서화, ⑧ 하드코딩된 값 제거, ⑨ 로깅 적절성, ⑩ 리소스 누수 확인(파일, DB 커넥션 등). 리뷰 시 'nit'(사소), 'question'(질문), 'must'(필수 수정) 라벨을 사용하고, 긍정적인 피드백도 함께 남겨주세요. 자동 린터(ESLint, Prettier)로 스타일은 자동 체크됩니다."
+  },
+  {
+    "question": "테스트 커버리지 기준은?",
+    "answer": "최소 80% 이상 유지가 목표입니다. 단위 테스트: 비즈니스 로직 함수는 100%, 통합 테스트: 주요 API 엔드포인트, E2E 테스트: 핵심 사용자 시나리오. PR 생성 시 CI에서 커버리지가 자동으로 체크되며, 80% 미만 시 경고가 표시됩니다(머지는 가능하나 권장하지 않음). 테스트는 Jest(백엔드), React Testing Library(프론트), Cypress(E2E)를 사용합니다. 테스트 작성이 어려운 레거시 코드는 점진적으로 개선하며, 신규 코드는 반드시 테스트 포함해야 합니다."
+  },
+  {
+    "question": "배포 프로세스는?",
+    "answer": "3단계 배포 전략입니다. ① 개발 서버(dev): develop 브랜치 머지 시 자동 배포(GitHub Actions), ② 스테이징(staging): release 브랜치 생성 후 수동 배포(QA 테스트용), ③ 프로덕션(prod): main 브랜치 머지 후 승인 후 배포. 배포 시간: 개발(수시), 스테이징(수시), 프로덕션(화/목 오후 3시, 긴급 시 예외). 배포 전 #deployment 채널에 30분 전 공지 필수이며, 배포 후 모니터링 30분 필수입니다. 롤백은 이전 버전 재배포로 진행하고, 롤백 시에도 공지합니다. 문의: DevOps팀 (내선: 4100)"
+  },
+  {
+    "question": "긴급 배포(Hotfix) 절차는?",
+    "answer": "프로덕션 긴급 버그 수정 시 사용합니다. ① main 브랜치에서 hotfix/이슈명 브랜치 생성, ② 최소한의 코드로 버그 수정, ③ 테스트 후 PR 생성(Reviewer: Tech Lead + CTO), ④ 승인 즉시 main에 머지, ⑤ 프로덕션 배포(승인 불요), ⑥ develop 브랜치에도 체리픽. 전 과정 소요 시간: 30분-1시간. Hotfix는 #tech-emergency 채널에 즉시 보고하고, 근본 원인 분석 후 포스트모텀을 작성해야 합니다(Confluence). 야간/주말 긴급 배포는 on-call 엔지니어가 처리합니다."
+  },
+  {
+    "question": "코드 프리징은 언제야?",
+    "answer": "주요 릴리즈 전 안정화 기간입니다. 프리징 기간: 릴리즈 1주일 전부터 릴리즈 완료 시까지. 이 기간에는 신규 기능 개발 금지, 버그 수정과 테스트만 진행합니다. develop 브랜치로의 머지는 Tech Lead 승인 필수이며, 새로운 기능은 다음 스프린트로 연기됩니다. 프리징 시작은 #tech-all 채널에 공지되고, Jira에서 해당 스프린트를 'Code Freeze' 상태로 변경합니다. 긴급한 비즈니스 요청만 CTO 승인 하에 예외 처리됩니다."
+  },
+  {
+    "question": "릴리즈 노트는 누가 작성해?",
+    "answer": "PM과 Tech Lead가 공동 작성합니다. 작성 시기: 릴리즈 2일 전. 포함 내용: ① 신규 기능(사용자 관점), ② 개선 사항, ③ 버그 수정, ④ Breaking Changes, ⑤ 알려진 이슈. 내부용은 Confluence에, 고객용은 마케팅팀이 블로그 포스트로 가공합니다. Jira의 'Fix Version'을 기준으로 티켓을 필터링하여 작성하고, 릴리즈 후 #announcements 채널에 공유합니다. 주요 릴리즈는 타운홀 미팅에서 데모 시연도 진행합니다."
+  },
+  {
+    "question": "버그 우선순위는 어떻게 정해?",
+    "answer": "4단계로 구분합니다. Critical(치명적): 서비스 중단/데이터 손실 → 즉시 수정(2시간 이내), High(높음): 주요 기능 불가 → 당일 수정, Medium(중간): 일부 기능 오류 → 3일 이내 수정, Low(낮음): UI 버그/사소한 오류 → 다음 스프린트. 우선순위는 PM + Tech Lead가 결정하며, 고객 리포트 버그는 자동으로 High 이상입니다. Critical 버그는 #tech-emergency 채널에 즉시 보고하고, 포스트모텀 작성 필수입니다. Jira Label로 'bug-critical', 'bug-high' 등을 태그합니다."
+  },
+  {
+    "question": "장애 발생 시 어떻게 대응해?",
+    "answer": "인시던트 매니지먼트 프로세스를 따릅니다. ① 장애 감지(모니터링 알람/사용자 리포트), ② #tech-emergency 채널에 보고, ③ Incident Commander 지정(on-call 엔지니어 또는 Tech Lead), ④ 원인 파악 및 임시 조치, ⑤ 근본 원인 수정 및 배포, ⑥ 서비스 복구 확인, ⑦ #announcements에 복구 공지, ⑧ 24시간 이내 포스트모텀 작성. 장애 등급: P0(전체 중단), P1(주요 기능 중단), P2(일부 영향). P0/P1은 CTO에게 즉시 보고되며, 언론 대응은 PR팀과 협의합니다."
+  },
+  {
+    "question": "포스트모텀 작성 방법은?",
+    "answer": "Confluence의 'Postmortem Template'을 사용합니다. 필수 항목: ① 인시던트 요약(언제, 무엇이, 얼마나), ② 타임라인(시간대별 상황 전개), ③ 근본 원인(Root Cause), ④ 영향 범위(사용자 수, 매출 영향), ⑤ 해결 방법, ⑥ 재발 방지 대책(Action Items), ⑦ 배운 점. 작성자는 Incident Commander이며, 작성 후 팀 리뷰를 거쳐 #tech-all에 공유합니다. 비난하지 않는(Blameless) 문화로 작성하며, 시스템 개선에 초점을 맞춥니다. 주요 장애는 타운홀에서 발표합니다."
+  },
+  {
+    "question": "모니터링 알람은 어떻게 설정돼?",
+    "answer": "Datadog과 Sentry로 모니터링합니다. 주요 메트릭: 응답 시간(>2초 경고), 에러율(>1% 경고), CPU/메모리(>80% 경고), 트래픽(평소 대비 50% 증감 시 알림). 알람은 #tech-alerts Slack 채널로 전송되며, Critical 알람은 on-call 엔지니어에게 전화/SMS로도 갑니다. on-call 순번은 주 단위로 돌아가며, Confluence의 'On-call Schedule'에서 확인 가능합니다. 알람 피로도를 줄이기 위해 분기마다 임계값을 조정하고, 불필요한 알람은 제거합니다."
+  },
+  {
+    "question": "성능 최적화는 언제 해?",
+    "answer": "정기적으로 성능 리뷰를 진행합니다. 분기별(3/6/9/12월 첫째 주): 성능 메트릭 리뷰 미팅, 페이지 로딩 속도, API 응답 시간, DB 쿼리 분석. 기준치 미달 시 다음 스프린트에 최적화 태스크를 추가합니다. 목표: 메인 페이지 로딩 < 2초, API 응답 < 500ms, DB 쿼리 < 100ms. Lighthouse, WebPageTest로 프론트 성능을 측정하고, New Relic으로 백엔드 병목을 분석합니다. 대규모 최적화는 별도 프로젝트로 기획합니다. 문의: Tech Lead (내선: 1100)"
+  },
+  {
+    "question": "리팩토링은 언제 해?",
+    "answer": "기술 부채 관리 프로세스가 있습니다. 매 스프린트의 20%는 리팩토링/기술 부채 해소에 할당되며, Tech Lead가 우선순위를 정합니다. 리팩토링이 필요한 코드는 Jira에 'Tech Debt' 라벨로 등록하고, 코드 리뷰 중 발견된 부채도 추가합니다. 분기별 Tech Debt Sprint(2주)를 운영하여 집중적으로 해소하며, 레거시 코드 현대화, 아키텍처 개선, 테스트 추가 등을 진행합니다. 리팩토링 전후 성능/안정성 비교를 반드시 수행합니다."
+  },
+  {
+    "question": "새로운 기술 스택 도입은 어떻게 해?",
+    "answer": "Tech Proposal 프로세스를 따릅니다. ① Confluence에 'Tech Proposal: [기술명]' 문서 작성(목적, 장단점, 대안, PoC 결과, 비용, 학습 곡선), ② 팀 리뷰 미팅에서 발표, ③ 찬반 투표 및 토론, ④ Tech Lead + CTO 최종 결정. 승인 시 파일럿 프로젝트에 먼저 적용하고, 안정화 후 점진적으로 확대합니다. 대규모 기술 전환(DB, 프레임워크 등)은 별도 TF를 구성하며, 외부 컨설팅도 고려합니다. 기술 결정 이력은 Architecture Decision Record(ADR)로 기록합니다."
+  },
+  {
+    "question": "개발 환경 세팅은 어떻게 해?",
+    "answer": "자동화된 온보딩 스크립트가 있습니다. Confluence의 'Dev Setup Guide' 문서 참고하여 진행: ① Homebrew/Chocolatey 설치, ② Git 설정, ③ 개발 도구(VS Code, IntelliJ 등) 설치, ④ Docker 설치 및 로컬 DB 구동, ⑤ Repository 클론, ⑥ 의존성 설치(npm install, pip install), ⑦ .env 파일 설정(1Password에서 복사), ⑧ 로컬 서버 실행 및 테스트. setup.sh 스크립트 실행 시 대부분 자동 설치되며, 문제 발생 시 #help-desk 채널에서 도움을 받으세요. 평균 세팅 시간: 1-2시간."
+  },
+  {
+    "question": "로컬 개발 환경과 클라우드 차이는?",
+    "answer": "로컬은 Docker Compose로 전체 스택을 실행합니다(DB, Redis, Queue 등). 클라우드(dev/staging/prod)는 AWS에서 운영되며, RDS(DB), ElastiCache(Redis), SQS(Queue), S3(스토리지)를 사용합니다. 로컬 개발 시 AWS 서비스 호출은 LocalStack(mock)을 사용하고, .env.local 파일로 로컬 설정을 관리합니다. 클라우드 환경은 Terraform으로 IaC 관리되며, 인프라 변경은 DevOps팀 승인 필요합니다. 개발자는 dev 환경에 자유롭게 배포 가능하지만, staging/prod는 제한됩니다."
+  },
+  {
+    "question": "코드 컨벤션은 어디서 확인해?",
+    "answer": "Confluence의 'Coding Standards' 페이지에 정리되어 있습니다. 언어별 가이드: JavaScript(Airbnb), Python(PEP 8), Java(Google), TypeScript(공식 가이드). 자동화 도구: ESLint, Prettier(JS/TS), Black(Python), Checkstyle(Java). Pre-commit Hook으로 커밋 전 자동 포맷팅되며, CI에서도 재검증합니다. 팀별로 추가 규칙이 있을 수 있으니 팀 문서도 참고하세요. 컨벤션 변경 제안은 Tech Lead에게 하고, 팀 투표로 결정합니다."
+  },
+  {
+    "question": "문서화 규칙은?",
+    "answer": "코드와 문서는 함께 관리됩니다. README.md: 프로젝트 소개, 설치 방법, 실행 방법, 주요 기능. API: Swagger/OpenAPI로 자동 생성. 함수/클래스: JSDoc, Docstring 작성(복잡한 로직만). 아키텍처: Confluence에 다이어그램(C4 Model 권장). 변경 이력: CHANGELOG.md 유지. 문서는 코드와 함께 PR에 포함되어야 하며, 문서 누락 시 리뷰어가 지적합니다. 분기별 '문서화 주간'에 오래된 문서를 업데이트합니다."
+  },
+  {
+    "question": "보안 취약점은 어떻게 관리해?",
+    "answer": "자동화 + 수동 검증으로 관리합니다. 자동 스캔: Dependabot(의존성 취약점), Snyk(코드/컨테이너 취약점), SonarQube(코드 품질/보안). 스캔 결과는 #security-alerts 채널로 전송되며, Critical/High는 1주일 이내 수정 필수입니다. 분기별 외부 모의해킹을 진행하고, 발견된 취약점은 즉시 패치합니다. 보안 이슈 리포트는 security@beyondcorp.com으로만 전송하고, 공개 채널에 공유 금지입니다. 보안 교육은 반기별로 의무 참석입니다."
+  },
+  {
+    "question": "개인정보 처리는 어떻게 해?",
+    "answer": "GDPR/개인정보보호법을 준수합니다. 개인정보 수집 시: 필수/선택 구분, 동의 획득, 이용 목적 명시. 저장: DB 암호화(AES-256), 민감정보는 별도 테이블로 분리, 접근 로그 기록. 전송: HTTPS/TLS 필수, API에 개인정보 포함 금지(ID만 전달). 보관: 법정 보관 기간 준수, 기간 만료 시 자동 삭제. 개인정보 처리 코드는 코드 리뷰 시 특별히 엄격하게 검토되며, 개인정보 관련 장애 발생 시 법무팀 + CPO에게 즉시 보고합니다. 교육: 연 1회 필수."
+  },
+  {
+    "question": "A/B 테스트는 어떻게 진행해?",
+    "answer": "LaunchDarkly Feature Flag를 사용합니다. 절차: ① PM이 A/B 테스트 계획 수립(가설, 성공 지표, 기간, 대상 비율), ② 개발자가 Feature Flag 구현(variant A/B), ③ 스테이징에서 검증, ④ 프로덕션 배포 후 Flag 활성화(예: 50:50), ⑤ 1-2주 데이터 수집, ⑥ Google Analytics/Mixpanel로 결과 분석, ⑦ Winner 결정 및 Flag 제거. A/B 테스트는 #product-experiments 채널에 공지하고, 결과는 타운홀에서 공유합니다. 중요한 테스트는 통계적 유의성 검증 필수입니다."
+  },
+  {
+    "question": "데이터 분석 요청은 어떻게 해?",
+    "answer": "Jira에 'Data Analysis Request' 티켓을 생성합니다. 포함 내용: 분석 목적, 필요한 데이터, 기간, 원하는 결과 형태(그래프/리포트/Raw Data). Data팀에서 우선순위를 정하고, 1-3일 내 결과를 제공합니다. 간단한 쿼리는 Metabase 셀프 서비스를 이용하세요(교육: 매월 첫째 주 화요일). 정기 리포트(주간/월간)는 자동화되어 이메일/Slack으로 발송되며, 대시보드는 Tableau에서 확인 가능합니다. 문의: Data팀 (내선: 7000)"
+  },
+  {
+    "question": "고객 피드백은 어떻게 수집해?",
+    "answer": "다채널로 수집합니다. 인앱 피드백(피드백 버튼 → Zendesk), 고객 인터뷰(PM 주관, 격주), NPS 설문(분기별), 앱스토어/플레이스토어 리뷰(자동 수집 → Slack #customer-feedback), 고객센터 문의(Zendesk). 모든 피드백은 Jira로 자동 연동되며, PM이 분류(Bug/Feature Request/Improvement)합니다. 긴급/중요 피드백은 Tech Lead와 즉시 논의하고, 트렌드 분석은 월별 Product Review 미팅에서 공유됩니다. 고객 인터뷰 참관은 누구나 가능합니다(PM에게 신청)."
+  },
+  {
+    "question": "사내 해커톤은 언제야?",
+    "answer": "분기마다 1회 개최됩니다(3/6/9/12월 마지막 주 금-토). 24시간 동안 자유 주제로 개발하며, 팀 구성은 자유(1-5명). 주제 예시: 신규 기능 프로토타입, 업무 자동화 도구, 재미있는 프로젝트 등. 해커톤 기간은 업무 시간으로 인정되고, 식사/간식이 제공됩니다. 발표 후 투표로 우승팀 선정(1등 200만원, 2등 100만원, 3등 50만원), 우수 아이디어는 실제 프로덕트에 반영되기도 합니다. 참여 신청: #hackathon 채널에서 2주 전부터 가능. 준비물: 노트북, 열정!"
+  },
+  {
+    "question": "Tech Talk은 언제 해?",
+    "answer": "매주 금요일 오후 4시에 5층 대강당에서 진행됩니다(30-60분). 발표 주제: 신기술 소개, 프로젝트 회고, 트러블슈팅 사례, 외부 컨퍼런스 참가 후기 등. 발표자는 자원자 우선이며, 발표 후 복지포인트 10만원 지급됩니다. 발표 신청은 #tech-talk 채널에서 하고, 자료는 Confluence에 업로드됩니다. 녹화 영상은 Confluence에 아카이브되며, 외부 공개는 발표자 동의 하에 진행합니다. 질의응답 시간에 활발한 토론을 환영하며, 피자/치킨이 제공됩니다."
+  }
+]
