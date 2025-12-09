@@ -188,12 +188,6 @@ def save_cache(cache: dict):
     with CACHE_PATH.open("w", encoding="utf-8") as f:
         json.dump(cache, f, indent=2, ensure_ascii=False)
 
-
-# --------------------------------------------------
-# updated_at 기반으로 "바뀐 wiki만" Gemini 돌리기
-#   - wiki 하나당: 여러 chunk FAQ + 전체 요약 FAQ 1개
-#   - 캐시에 wiki_id별로 entries + updated_at 저장
-# --------------------------------------------------
 def build_entries_with_cache(rows):
     """
     rows: fetch_wiki_rows() 결과
@@ -228,22 +222,18 @@ def build_entries_with_cache(rows):
 
         full_text = f"{title}: {content}"
 
-        # 캐시에 있고 updated_at 같으면, 그대로 재사용
         if wiki_id in cache and cache[wiki_id].get("updated_at") == updated_at_str:
             print(f"[{idx}] 캐시 재사용: {title}")
             wiki_entries = cache[wiki_id]["entries"]
         else:
             print(f"[{idx}] 새로 생성: {title}")
 
-            # 1) chunk 나누기
             chunks = split_to_chunks(full_text)
 
             wiki_entries = []
 
-            # 2) chunk별 개별 FAQ 생성
             for c_idx, chunk in enumerate(chunks, start=1):
                 print(f"    - chunk {c_idx}/{len(chunks)} 질문 생성 중...")
-                # API 호출 부담 줄이려고 딜레이 유지 (필요 없으면 제거해도 됨)
                 if c_idx > 1:
                     time.sleep(7)
 
@@ -253,7 +243,6 @@ def build_entries_with_cache(rows):
                     "answer": chunk
                 })
 
-            # 3) 전체 내용을 대표하는 요약 FAQ 1개 생성
             print("    - 전체 요약 FAQ 생성 중...")
             overall_q, overall_a = generate_overall_faq(full_text)
             wiki_entries.append({
@@ -261,16 +250,13 @@ def build_entries_with_cache(rows):
                 "answer": overall_a
             })
 
-            # 캐시 업데이트
             cache[wiki_id] = {
                 "updated_at": updated_at_str,
                 "entries": wiki_entries
             }
 
-        # 최종 전체 entries에 합치기
         entries.extend(wiki_entries)
 
-    # 더 이상 DB에 없는 wiki_id는 캐시에서 제거
     removed_ids = [wid for wid in cache.keys() if wid not in current_ids]
     for wid in removed_ids:
         del cache[wid]
@@ -283,9 +269,6 @@ def build_entries_with_cache(rows):
     return entries
 
 
-# --------------------------------------------------
-# JSON 저장 (여러 파일로, 이전 파일 삭제 포함)
-# --------------------------------------------------
 def save_as_multi_json(entries):
     """
     entries 리스트를 MAX_ITEMS_PER_FILE 기준으로 잘라
@@ -294,7 +277,6 @@ def save_as_multi_json(entries):
     """
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 이전 FAQ JSON 파일 삭제
     old_files = list(OUTPUT_DIR.glob(f"{BASE_FILE_NAME}_*.json"))
     for f in old_files:
         f.unlink()
@@ -319,10 +301,6 @@ def save_as_multi_json(entries):
 
     print(f"\nJSON 파일 저장 완료! (총 {file_index - 1}개 파일)")
 
-
-# --------------------------------------------------
-# 메인 실행
-# --------------------------------------------------
 def export_from_db_to_multi_json():
     rows = fetch_wiki_rows()
     if not rows:
