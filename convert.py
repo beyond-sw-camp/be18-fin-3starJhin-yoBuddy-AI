@@ -6,28 +6,19 @@ import pymysql
 import google.generativeai as genai
 from dotenv import load_dotenv
 from pathlib import Path
+from datetime import datetime
 
-# --------------------------------------------------
-# 0) 기본 설정 (경로 / 환경변수 / Gemini 설정)
-# --------------------------------------------------
-
-# 이 파일(convert.py)이 있는 폴더 기준
 BASE_DIR = Path(__file__).resolve().parent
 
-# .env 로드
 load_dotenv(BASE_DIR / ".env")
 
 API_KEY = os.getenv("GEMINI_API_KEY")
 if not API_KEY:
-    raise RuntimeError("GEMINI_API_KEY 환경변수가 설정되어 있지 않습니다. .env 파일을 확인하세요.")
+    raise RuntimeError("GEMINI_API_KEY가 설정되어 있지 않습니다. .env 파일을 확인하세요.")
 
 GENAI_MODEL_NAME = "models/gemini-2.5-flash"
 genai.configure(api_key=API_KEY)
 model = genai.GenerativeModel(GENAI_MODEL_NAME)
-
-# --------------------------------------------------
-# 1) DB 설정 (.env에서 읽기)
-# --------------------------------------------------
 
 DB_HOST = os.environ["DB_HOST"]
 DB_PORT = int(os.environ["DB_PORT"])
@@ -35,26 +26,24 @@ DB_USER = os.environ["DB_USER"]
 DB_PASSWORD = os.environ["DB_PASSWORD"]
 DB_NAME = os.environ["DB_NAME"]
 
-# 위키가 저장된 테이블/컬럼명 (프로젝트 DB 구조에 맞게 조정)
 WIKI_TABLE = "wiki"
+WIKI_ID_COL = "wiki_id"         
 WIKI_TITLE_COL = "title"
 WIKI_CONTENT_COL = "content"
-WIKI_IS_DELETED_COL = "isdeleted"  # 실제 컬럼명에 맞게 사용
+WIKI_UPDATED_AT_COL = "update_at"
+WIKI_IS_DELETED_COL = "isdeleted"
 
-# JSON 출력 경로: convert.py가 있는 폴더 기준 company_FAQ 폴더
 OUTPUT_DIR = BASE_DIR / "company_FAQ"
-BASE_FILE_NAME = "converted_faq"  # converted_faq_1.json, converted_faq_2.json ...
-MAX_ITEMS_PER_FILE = 500          # 한 파일당 최대 FAQ 개수
+BASE_FILE_NAME = "converted_faq"
+MAX_ITEMS_PER_FILE = 500
+
+CACHE_PATH = OUTPUT_DIR / "faq_cache.json"
 
 
-# --------------------------------------------------
-# 2) DB에서 위키 내용 가져오기
-# --------------------------------------------------
-
-def fetch_wiki_from_db() -> str:
+def fetch_wiki_rows():
     """
-    DB에서 위키들을 읽어와서,
-    각 row를 "제목: 내용" 형식의 블록으로 만들어 \n\n 로 이어붙인 텍스트를 반환.
+    DB에서 (id, title, content, updated_at)을 읽어와 리스트로 반환.
+    isdeleted = 0 인 것만.
     """
     conn = pymysql.connect(
         host=DB_HOST,
@@ -69,8 +58,11 @@ def fetch_wiki_from_db() -> str:
     try:
         with conn.cursor() as cur:
             sql = f"""
-            SELECT {WIKI_TITLE_COL}   AS title,
-                   {WIKI_CONTENT_COL} AS content
+            SELECT
+                {WIKI_ID_COL}          AS id,
+                {WIKI_TITLE_COL}       AS title,
+                {WIKI_CONTENT_COL}     AS content,
+                {WIKI_UPDATED_AT_COL}  AS updated_at
             FROM {WIKI_TABLE}
             WHERE {WIKI_IS_DELETED_COL} = 0
             """
@@ -79,67 +71,45 @@ def fetch_wiki_from_db() -> str:
     finally:
         conn.close()
 
-    blocks = []
-    for row in rows:
-        title = row["title"] or ""
-        content = row["content"] or ""
-        blocks.append(f"{title}: {content}")
-
-    text = "\n\n".join(blocks)
     print(f"DB에서 {len(rows)}개 위키를 읽어왔습니다.")
-    return text
+    return rows
 
-
-# --------------------------------------------------
-# 3) 텍스트를 적당한 길이의 chunk로 나누기
-# --------------------------------------------------
 
 def split_to_chunks(text: str):
     """
     긴 텍스트를 문단/문장 단위로 잘라서 chunk 리스트로 반환.
+    한 wiki row 안에서 여러 FAQ를 뽑고 싶을 때 사용.
     """
-    # 1) 문단 기준 분리
     paragraphs = re.split(r'\n\s*\n', text.strip())
     paragraphs = [p.strip() for p in paragraphs if p.strip()]
 
     chunks = []
 
     for para in paragraphs:
-        # 너무 길면 문장 단위로 재분할
         if len(para) > 300:
             sentences = re.split(r'(?<=\.)\s+', para)
             buffer = ""
-
             for sent in sentences:
                 if len(buffer) + len(sent) < 250:
                     buffer += sent + " "
                 else:
                     chunks.append(buffer.strip())
                     buffer = sent + " "
-
             if buffer.strip():
                 chunks.append(buffer.strip())
         else:
             chunks.append(para)
 
-    print(f"총 {len(chunks)}개의 chunk로 분리되었습니다.")
+    print(f"    - 이 위키에서 {len(chunks)}개 chunk로 분리됨")
     return chunks
 
 
-# --------------------------------------------------
-# 4) Gemini로 자연스러운 질문 생성
-# --------------------------------------------------
-
 def generate_question_with_gemini(chunk: str) -> str:
-    """
-    chunk 내용을 기반으로, 실제 사람이 물어볼 만한 FAQ 질문 한 문장을 Gemini에게 생성 요청.
-    """
     prompt = f"""
 아래 내용을 읽고, 실제 사용자가 이 내용을 질문하려고 할 때 자연스럽게 물어볼 'FAQ 스타일 질문'을 한 문장으로 만들어줘.
 
 내용:
 \"\"\"{chunk}\"\"\"
-
 
 질문 생성 규칙:
 - 자연스러운 질문일 것
@@ -155,58 +125,181 @@ def generate_question_with_gemini(chunk: str) -> str:
 출력 형식:
 - 질문 문장만 출력
 """
-
     response = model.generate_content(prompt)
     question = (response.text or "").strip()
     question = question.replace("질문:", "").strip()
 
-    # 너무 길면 조금 잘라주기
     if len(question) > 120:
         question = question[:120] + "..."
 
     return question
 
+def generate_overall_faq(text: str):
+    """
+    text 전체를 대표하는 '요약형 FAQ' (질문+답변) 1개 생성
+    """
+    prompt = f"""
+아래 내용을 하나의 위키 문서라고 생각하고,
+이 전체 내용을 자연스럽게 묻는 FAQ 스타일 질문 1개와,
+그에 대한 요약 답변 1개를 만들어줘.
+
+내용:
+\"\"\"{text}\"\"\"
+
+작성 규칙:
+- 질문은 이 문서 전체를 대표하는 질문 1개
+  예) "회사 근처에는 어떤 맛집이 있나요?"
+- 답변은 핵심 내용들을 한 번에 요약해서 정리
+- 문체는 회사 FAQ 느낌의 존댓말로 작성
+
+출력 형식 (반드시 이 형식 유지):
+질문: ...
+답변: ...
+"""
+    response = model.generate_content(prompt)
+    raw = (response.text or "").strip()
+
+    q = ""
+    a = ""
+
+    for line in raw.splitlines():
+        line = line.strip()
+        if line.startswith("질문:"):
+            q = line.replace("질문:", "").strip()
+        elif line.startswith("답변:"):
+            a = line.replace("답변:", "").strip()
+
+    if not q:
+        q = "이 위키의 전체 내용을 한 번에 요약하면 어떻게 되나요?"
+    if not a:
+        a = text[:200] + "..."
+
+    return q, a
+
+def load_cache():
+    if CACHE_PATH.exists():
+        with CACHE_PATH.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def save_cache(cache: dict):
+    CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with CACHE_PATH.open("w", encoding="utf-8") as f:
+        json.dump(cache, f, indent=2, ensure_ascii=False)
+
 
 # --------------------------------------------------
-# 5) chunks → (Q, A) entry 리스트 만들기
+# updated_at 기반으로 "바뀐 wiki만" Gemini 돌리기
+#   - wiki 하나당: 여러 chunk FAQ + 전체 요약 FAQ 1개
+#   - 캐시에 wiki_id별로 entries + updated_at 저장
 # --------------------------------------------------
-
-def build_entries_from_text(text: str):
+def build_entries_with_cache(rows):
     """
-    전체 텍스트에서 chunk를 만들고,
-    각 chunk에 대해 (question, answer) entry를 생성한 리스트를 반환.
+    rows: fetch_wiki_rows() 결과
+    cache 구조:
+    {
+      "123": {
+        "updated_at": "...",
+        "entries": [
+          {"question": "...", "answer": "..."},
+          ...
+        ]
+      },
+      ...
+    }
     """
-    chunks = split_to_chunks(text)
+    cache = load_cache()
     entries = []
+    current_ids = set()
 
-    for idx, chunk in enumerate(chunks, start=1):
-        print(f"\n▶ [{idx}/{len(chunks)}] Gemini 질문 생성 중…")
+    for idx, row in enumerate(rows, start=1):
+        wiki_id = str(row["id"])
+        title = row["title"] or ""
+        content = row["content"] or ""
+        updated_at = row["updated_at"]
 
-        # 무료 티어: 분당 10회 제한 → 호출 간격을 넉넉하게 벌려줌
-        if idx > 1:
-            time.sleep(7)  # 두 번째 호출부터 7초 쉬고 호출
+        if isinstance(updated_at, datetime):
+            updated_at_str = updated_at.isoformat()
+        else:
+            updated_at_str = str(updated_at)
 
-        q = generate_question_with_gemini(chunk)
+        current_ids.add(wiki_id)
 
-        entries.append({
-            "question": q,
-            "answer": chunk,  # 일단은 chunk 전체를 answer로 사용
-        })
+        full_text = f"{title}: {content}"
+
+        # 캐시에 있고 updated_at 같으면, 그대로 재사용
+        if wiki_id in cache and cache[wiki_id].get("updated_at") == updated_at_str:
+            print(f"[{idx}] 캐시 재사용: {title}")
+            wiki_entries = cache[wiki_id]["entries"]
+        else:
+            print(f"[{idx}] 새로 생성: {title}")
+
+            # 1) chunk 나누기
+            chunks = split_to_chunks(full_text)
+
+            wiki_entries = []
+
+            # 2) chunk별 개별 FAQ 생성
+            for c_idx, chunk in enumerate(chunks, start=1):
+                print(f"    - chunk {c_idx}/{len(chunks)} 질문 생성 중...")
+                # API 호출 부담 줄이려고 딜레이 유지 (필요 없으면 제거해도 됨)
+                if c_idx > 1:
+                    time.sleep(7)
+
+                q = generate_question_with_gemini(chunk)
+                wiki_entries.append({
+                    "question": q,
+                    "answer": chunk
+                })
+
+            # 3) 전체 내용을 대표하는 요약 FAQ 1개 생성
+            print("    - 전체 요약 FAQ 생성 중...")
+            overall_q, overall_a = generate_overall_faq(full_text)
+            wiki_entries.append({
+                "question": overall_q,
+                "answer": overall_a
+            })
+
+            # 캐시 업데이트
+            cache[wiki_id] = {
+                "updated_at": updated_at_str,
+                "entries": wiki_entries
+            }
+
+        # 최종 전체 entries에 합치기
+        entries.extend(wiki_entries)
+
+    # 더 이상 DB에 없는 wiki_id는 캐시에서 제거
+    removed_ids = [wid for wid in cache.keys() if wid not in current_ids]
+    for wid in removed_ids:
+        del cache[wid]
+    if removed_ids:
+        print(f"캐시에서 삭제된 wiki {len(removed_ids)}개 정리")
+
+    save_cache(cache)
 
     print(f"\n총 {len(entries)}개의 FAQ 엔트리가 생성되었습니다.")
     return entries
 
 
 # --------------------------------------------------
-# 6) JSON 저장 (여러 파일로 나누기)
+# JSON 저장 (여러 파일로, 이전 파일 삭제 포함)
 # --------------------------------------------------
-
 def save_as_multi_json(entries):
     """
     entries 리스트를 MAX_ITEMS_PER_FILE 기준으로 잘라
     converted_faq_1.json, converted_faq_2.json ... 형태로 저장.
+    기존 converted_faq_* 파일은 먼저 삭제.
     """
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # 이전 FAQ JSON 파일 삭제
+    old_files = list(OUTPUT_DIR.glob(f"{BASE_FILE_NAME}_*.json"))
+    for f in old_files:
+        f.unlink()
+    if old_files:
+        print(f"기존 FAQ JSON {len(old_files)}개 삭제")
 
     total = len(entries)
     if total == 0:
@@ -221,36 +314,22 @@ def save_as_multi_json(entries):
         with file_path.open("w", encoding="utf-8") as f:
             json.dump(slice_entries, f, indent=2, ensure_ascii=False)
 
-        print(f" {len(slice_entries)}개를 {file_path} 에 저장했습니다.")
+        print(f"{len(slice_entries)}개를 {file_path} 에 저장했습니다.")
         file_index += 1
 
     print(f"\nJSON 파일 저장 완료! (총 {file_index - 1}개 파일)")
 
-    # 🔍 디버깅용: 실제로 어떤 경로/파일을 보고 있는지 출력
-    print("\n[DEBUG] 현재 작업 디렉토리:", os.getcwd())
-    print("[DEBUG] OUTPUT_DIR:", OUTPUT_DIR)
-    try:
-        print("[DEBUG] OUTPUT_DIR 안의 파일들:", [p.name for p in OUTPUT_DIR.iterdir()])
-    except FileNotFoundError:
-        print("[DEBUG] OUTPUT_DIR 가 존재하지 않습니다.")
-
 
 # --------------------------------------------------
-# 7) 메인 실행
+# 메인 실행
 # --------------------------------------------------
-
 def export_from_db_to_multi_json():
-    # 1) DB에서 위키 읽어오기
-    text = fetch_wiki_from_db()
-
-    if not text.strip():
+    rows = fetch_wiki_rows()
+    if not rows:
         print("DB에서 가져온 내용이 비어 있습니다. 종료합니다.")
         return
 
-    # 2) (Q, A) 엔트리 생성
-    entries = build_entries_from_text(text)
-
-    # 3) 여러 JSON 파일로 나누어 저장
+    entries = build_entries_with_cache(rows)
     save_as_multi_json(entries)
 
 
