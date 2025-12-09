@@ -12,5 +12,3 @@ ENV/
 
 .vscode/
 .idea/
-
-*.json
