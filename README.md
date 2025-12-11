@@ -1,4 +1,4 @@
-# 🧠 Company FAQ Chatbot – 전체 아키텍처 개요
+# 🧠 Company FAQ Chatbot
 
 ## 📚 데이터 소스
 
