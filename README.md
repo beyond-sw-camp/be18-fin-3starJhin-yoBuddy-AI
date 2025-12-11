@@ -1,4 +1,9 @@
-# 🧠 Company FAQ Chatbot
+<p align="center">
+  <img src="./docs/YoBuddy.png" alt="YoBuddy Architecture" />
+</p>
+
+<h1 align="center">🧠 Company FAQ Chatbot</h1>
+
 
 ## 📚 데이터 소스
 
