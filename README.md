@@ -153,7 +153,7 @@
 - SentenceTransformers – intfloat/multilingual-e5-large-instruct
 - Pydantic
 - Uvicorn
-- 
+
 📦 Data & Storage
 - MySQL / MariaDB (wiki 테이블)
 - JSON FAQ 파일 (company_FAQ/*.json)
